@@ -267,3 +267,49 @@ drop trigger if exists set_search_queries_updated_at on public.search_queries;
 create trigger set_search_queries_updated_at
   before update on public.search_queries
   for each row execute function public.set_updated_at();
+
+-- ============================================================
+-- Candidate discovery: candidates found from public web sources.
+-- Run this section once too (safe to re-run).
+-- ============================================================
+
+create table if not exists public.candidates (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.jobs (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  full_name text not null,
+  current_title text not null default 'Not Found',
+  current_company text not null default 'Not Found',
+  location text not null default 'Not Found',
+  profile_url text,
+  source text not null default 'Not Found',
+  source_url text,
+  snippet text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists candidates_job_id_created_at_idx
+  on public.candidates (job_id, created_at desc);
+
+alter table public.candidates enable row level security;
+
+drop policy if exists "Users can view own candidates" on public.candidates;
+create policy "Users can view own candidates"
+  on public.candidates for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert own candidates" on public.candidates;
+create policy "Users can insert own candidates"
+  on public.candidates for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own candidates" on public.candidates;
+create policy "Users can update own candidates"
+  on public.candidates for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete own candidates" on public.candidates;
+create policy "Users can delete own candidates"
+  on public.candidates for delete
+  using (auth.uid() = user_id);
