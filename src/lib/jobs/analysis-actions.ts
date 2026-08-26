@@ -18,7 +18,7 @@ const JD_BUCKET = "job-descriptions";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-async function resolveJdText(
+export async function resolveJdText(
   supabase: SupabaseServerClient,
   jobId: string,
   userId: string,
@@ -94,17 +94,18 @@ export interface AnalyzeJobResult {
   error?: string;
 }
 
-export async function analyzeJob(jobId: string): Promise<AnalyzeJobResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "You must be signed in to analyze this job." };
-  }
-
-  const { text, error: textError } = await resolveJdText(supabase, jobId, user.id);
+/**
+ * Resolves the JD text, runs AI analysis, and upserts `job_requirements`.
+ * Shared by the standalone "Analyze" action below and the automated
+ * find-candidates pipeline — neither the auth check nor path revalidation
+ * live here since the two callers need them scoped differently.
+ */
+export async function runAnalysisAndSave(
+  supabase: SupabaseServerClient,
+  jobId: string,
+  userId: string,
+): Promise<AnalyzeJobResult> {
+  const { text, error: textError } = await resolveJdText(supabase, jobId, userId);
   if (textError || !text) {
     return { error: textError ?? "No job description to analyze." };
   }
@@ -131,8 +132,26 @@ export async function analyzeJob(jobId: string): Promise<AnalyzeJobResult> {
     return { error: "The analysis completed, but we couldn't save it. Please try again." };
   }
 
-  revalidatePath(`/search/${jobId}/analysis`);
   return { data: saved as JobRequirements };
+}
+
+export async function analyzeJob(jobId: string): Promise<AnalyzeJobResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: "You must be signed in to analyze this job." };
+  }
+
+  const result = await runAnalysisAndSave(supabase, jobId, user.id);
+  if (result.error) {
+    return result;
+  }
+
+  revalidatePath(`/search/${jobId}/analysis`);
+  return result;
 }
 
 export interface SaveJobRequirementsResult {

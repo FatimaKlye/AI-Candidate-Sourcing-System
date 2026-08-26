@@ -62,3 +62,23 @@ export interface ExtractedProfileInfo {
   location: string;
   source: string;
 }
+
+// A candidate the AI extracted from a batch of public web search results —
+// see extractCandidatesFromSearchResults() in ai/ollama.ts. profile_url is
+// validated against the input batch's links after parsing (never trusted as
+// AI-generated), so this is never invented outright, only mis-attributed at
+// worst.
+export const extractedSearchCandidateSchema = z.object({
+  full_name: z.string().trim().min(1).catch(""),
+  current_title: z.string().trim().min(1).catch("Not Found"),
+  current_company: z.string().trim().min(1).catch("Not Found"),
+  location: z.string().trim().min(1).catch("Not Found"),
+  profile_url: z.string().trim().catch(""),
+  source: z.string().trim().min(1).catch("Public Web Search"),
+});
+
+export type ExtractedSearchCandidate = z.infer<typeof extractedSearchCandidateSchema>;
+
+export const extractedSearchCandidatesResponseSchema = z.object({
+  candidates: z.array(extractedSearchCandidateSchema).catch([]),
+});

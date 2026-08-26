@@ -10,6 +10,11 @@ import {
   candidateEvaluationSchema,
   type CandidateEvaluation,
 } from "@/lib/jobs/ranking-schema";
+import {
+  extractedSearchCandidatesResponseSchema,
+  type ExtractedSearchCandidate,
+} from "@/lib/jobs/candidates-schema";
+import type { WebSearchResult } from "@/lib/search/google";
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "qwen2.5";
@@ -248,4 +253,56 @@ export async function evaluateCandidateAgainstRequirements(
   }
 
   return result.data;
+}
+
+const CANDIDATE_EXTRACTION_SYSTEM_PROMPT = `You are a precise sourcing analyst. You will be given a job's hiring requirements and a batch of public web search results (title, link, snippet).
+
+Rules:
+- Only extract a result if it clearly identifies ONE specific, named, real individual person who could plausibly be a candidate for this role (e.g. a LinkedIn profile, a personal bio page, an executive profile, a public resume/CV).
+- Never invent a person. Skip results that are job listing pages, company pages, news articles, aggregator/directory listing pages, ads, or anything that does not name a specific individual.
+- If the same person appears in more than one result, only return them once.
+- "profile_url" must be copied EXACTLY, character-for-character, from that result's "link" field. Never modify, shorten, or invent a URL.
+- "full_name" must be the person's actual name as it appears in the result. Never use a job title, company name, or generic phrase as the name.
+- "current_title" and "current_company" should be extracted from the title/snippet if stated; otherwise respond with exactly "Not Found".
+- "location" should be extracted only if explicitly stated in the title/snippet; otherwise respond with exactly "Not Found".
+- "source" should briefly describe where this was found (e.g. "LinkedIn Profile", "Company Bio Page", "Public Resume").
+- If no result in the batch represents an identifiable individual, return an empty array.
+- Respond with ONLY a single JSON object, no markdown formatting and no commentary, matching exactly this shape:
+{
+  "candidates": [
+    { "full_name": string, "current_title": string, "current_company": string, "location": string, "profile_url": string, "source": string }
+  ]
+}`;
+
+export async function extractCandidatesFromSearchResults(
+  requirements: JobRequirementsExtraction,
+  results: WebSearchResult[],
+): Promise<ExtractedSearchCandidate[]> {
+  if (results.length === 0) return [];
+
+  const userContent = `Job requirements:\n${JSON.stringify(
+    {
+      job_title: requirements.job_title,
+      related_titles: requirements.related_titles,
+      industry: requirements.industry,
+      seniority: requirements.seniority,
+    },
+    null,
+    2,
+  )}\n\nSearch results:\n${JSON.stringify(results, null, 2)}`;
+
+  const parsedJson = await chatJson(CANDIDATE_EXTRACTION_SYSTEM_PROMPT, userContent);
+
+  const result = extractedSearchCandidatesResponseSchema.safeParse(parsedJson);
+  if (!result.success) {
+    throw new OllamaResponseError(
+      "The AI model returned an unexpected response while extracting candidates from search results.",
+    );
+  }
+
+  const validLinks = new Set(results.map((r) => r.link));
+
+  return result.data.candidates.filter(
+    (candidate) => candidate.full_name.length > 0 && validLinks.has(candidate.profile_url),
+  );
 }

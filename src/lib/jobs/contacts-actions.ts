@@ -6,6 +6,17 @@ import { findPublicContact } from "@/lib/search/contact-search";
 import { GoogleSearchConfigError } from "@/lib/search/google";
 import type { CandidateContact } from "@/lib/jobs/contacts-schema";
 import type { CandidateMatchWithCandidate } from "@/lib/jobs/ranking-schema";
+import type { Candidate } from "@/lib/jobs/candidates-schema";
+
+// What saveContact() actually needs to look someone up — a candidate ID plus
+// the identifying fields, not a full ranked match. Lets the automated
+// find-candidates pipeline call this before ranking exists, while a
+// CandidateMatchWithCandidate (used by the manual contact-discovery page)
+// still satisfies this shape structurally.
+export interface ContactLookupTarget {
+  candidate_id: string;
+  candidate: Pick<Candidate, "full_name" | "current_title" | "current_company">;
+}
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -57,23 +68,23 @@ async function fetchShortlistedMatches(
   return (data ?? []) as unknown as CandidateMatchWithCandidate[];
 }
 
-async function saveContact(
+export async function saveContact(
   supabase: SupabaseServerClient,
   jobId: string,
   userId: string,
-  match: CandidateMatchWithCandidate,
+  target: ContactLookupTarget,
 ): Promise<CandidateContact | null> {
   const result = await findPublicContact({
-    fullName: match.candidate.full_name,
-    currentTitle: match.candidate.current_title,
-    currentCompany: match.candidate.current_company,
+    fullName: target.candidate.full_name,
+    currentTitle: target.candidate.current_title,
+    currentCompany: target.candidate.current_company,
   });
 
   const { data: saved } = await supabase
     .from("candidate_contacts")
     .upsert(
       {
-        candidate_id: match.candidate_id,
+        candidate_id: target.candidate_id,
         job_id: jobId,
         user_id: userId,
         email: result.email,

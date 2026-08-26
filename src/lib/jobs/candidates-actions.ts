@@ -40,6 +40,7 @@ interface NewCandidateFields {
   location: string;
   profile_url: string | null;
   source: string;
+  snippet?: string | null;
 }
 
 async function insertCandidate(
@@ -84,6 +85,85 @@ async function insertCandidate(
 
   revalidatePath(`/search/${jobId}/candidates`);
   return { data: inserted as Candidate };
+}
+
+/**
+ * Bulk-inserts AI-discovered candidates for the automated find-candidates
+ * pipeline. Unlike `insertCandidate`, duplicates are skipped silently rather
+ * than surfaced as an error — this runs unattended over many candidates at
+ * once, dedupe-ing against both the existing DB rows (including any
+ * manually-added candidates, which are never touched) and the batch itself.
+ */
+export async function insertCandidatesBulk(
+  supabase: SupabaseServerClient,
+  jobId: string,
+  userId: string,
+  candidates: NewCandidateFields[],
+): Promise<Candidate[]> {
+  const { data: existing } = await supabase
+    .from("candidates")
+    .select("*")
+    .eq("job_id", jobId)
+    .eq("user_id", userId);
+
+  const known: Candidate[] = [...((existing ?? []) as Candidate[])];
+  const rowsToInsert: Array<{
+    job_id: string;
+    user_id: string;
+    full_name: string;
+    current_title: string;
+    current_company: string;
+    location: string;
+    profile_url: string | null;
+    source: string;
+    source_url: string | null;
+    snippet: string | null;
+  }> = [];
+
+  for (const candidate of candidates) {
+    if (findDuplicateCandidate(candidate, known)) continue;
+
+    const placeholder: Candidate = {
+      id: `pending-${rowsToInsert.length}`,
+      job_id: jobId,
+      user_id: userId,
+      full_name: candidate.full_name,
+      current_title: candidate.current_title,
+      current_company: candidate.current_company,
+      location: candidate.location,
+      profile_url: candidate.profile_url,
+      source: candidate.source,
+      source_url: candidate.profile_url,
+      snippet: null,
+      created_at: new Date().toISOString(),
+    };
+    known.push(placeholder);
+
+    rowsToInsert.push({
+      job_id: jobId,
+      user_id: userId,
+      full_name: candidate.full_name,
+      current_title: candidate.current_title,
+      current_company: candidate.current_company,
+      location: candidate.location,
+      profile_url: candidate.profile_url,
+      source: candidate.source,
+      source_url: candidate.profile_url,
+      snippet: candidate.snippet ?? null,
+    });
+  }
+
+  if (rowsToInsert.length === 0) {
+    return [];
+  }
+
+  const { data: inserted } = await supabase
+    .from("candidates")
+    .insert(rowsToInsert)
+    .select();
+
+  revalidatePath(`/search/${jobId}/candidates`);
+  return (inserted ?? []) as Candidate[];
 }
 
 export async function addCandidateManually(

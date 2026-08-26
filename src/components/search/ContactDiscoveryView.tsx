@@ -36,6 +36,13 @@ function overallStatus(contact: CandidateContact | undefined): ContactStatus | "
   return "Not Found";
 }
 
+// AGENTS.md requires literal "Not Publicly Found" copy; the stored enum
+// value stays "Not Found" so it doesn't require a schema/data migration.
+function displayStatus(status: ContactStatus | "Not Searched"): string {
+  if (status === "Not Found" || status === "Not Searched") return "Not Publicly Found";
+  return status;
+}
+
 function Spinner() {
   return (
     <svg className="h-8 w-8 animate-spin text-indigo-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -226,7 +233,7 @@ export function ContactDiscoveryView({
                       status,
                     )}`}
                   >
-                    {status}
+                    {displayStatus(status)}
                   </span>
                 </div>
               </div>
@@ -236,10 +243,10 @@ export function ContactDiscoveryView({
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Work Email
                   </p>
-                  <p className="mt-1 text-sm text-slate-900">{contact?.email ?? "Not Found"}</p>
+                  <p className="mt-1 text-sm text-slate-900">{contact?.email ?? "Not Publicly Found"}</p>
                   {contact && (
                     <p className="text-xs text-slate-500">
-                      Status: {contact.email_status}
+                      Status: {displayStatus(contact.email_status)}
                       {contact.email_status === "Possible" && " · Verification: Not Verified"}
                     </p>
                   )}
@@ -248,8 +255,10 @@ export function ContactDiscoveryView({
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Phone
                   </p>
-                  <p className="mt-1 text-sm text-slate-900">{contact?.phone ?? "Not Found"}</p>
-                  {contact && <p className="text-xs text-slate-500">Status: {contact.phone_status}</p>}
+                  <p className="mt-1 text-sm text-slate-900">{contact?.phone ?? "Not Publicly Found"}</p>
+                  {contact && (
+                    <p className="text-xs text-slate-500">Status: {displayStatus(contact.phone_status)}</p>
+                  )}
                 </div>
               </div>
 

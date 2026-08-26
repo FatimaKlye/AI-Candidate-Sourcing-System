@@ -1,4 +1,4 @@
-export type JobStatus = "draft";
+export type JobStatus = "draft" | "completed";
 
 export interface Job {
   id: string;

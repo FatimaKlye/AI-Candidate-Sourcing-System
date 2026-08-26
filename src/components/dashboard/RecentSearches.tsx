@@ -18,6 +18,7 @@ interface RecentSearchesProps {
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "bg-slate-100 text-slate-700",
+  completed: "bg-emerald-50 text-emerald-700",
 };
 
 export function RecentSearches({ jobs }: RecentSearchesProps) {
