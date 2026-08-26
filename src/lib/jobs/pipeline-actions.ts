@@ -19,7 +19,7 @@ import { runAnalysisAndSave } from "@/lib/jobs/analysis-actions";
 import { insertCandidatesBulk } from "@/lib/jobs/candidates-actions";
 import { saveContact } from "@/lib/jobs/contacts-actions";
 import { scoreEvaluation } from "@/lib/jobs/scoring";
-import { searchWeb, GoogleSearchConfigError, type WebSearchResult } from "@/lib/search/google";
+import { searchWeb, SearxngRequestError, type WebSearchResult } from "@/lib/search/searxng";
 import type { Candidate, ExtractedSearchCandidate } from "@/lib/jobs/candidates-schema";
 import type { GeneratedSearchQuery } from "@/lib/jobs/queries-schema";
 import type { CandidateContact } from "@/lib/jobs/contacts-schema";
@@ -27,8 +27,8 @@ import type { CandidateMatchWithCandidate } from "@/lib/jobs/ranking-schema";
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
-// Keeps one click well under Google's free 100-queries/day Custom Search
-// quota: ~8 sourcing queries + up to ~3 contact-lookup queries per candidate.
+// Keeps one click's sourcing + per-candidate contact-lookup queries to a
+// reasonable number against the local SearXNG instance.
 const MAX_QUERIES_PER_RUN = 8;
 const MAX_CANDIDATES_TO_PROCESS = 20;
 const RESULTS_PER_QUERY = 8;
@@ -135,7 +135,7 @@ export async function findCandidates(jobId: string): Promise<FindCandidatesResul
     try {
       results = await searchWeb(query.query_text, RESULTS_PER_QUERY);
     } catch (err) {
-      if (err instanceof GoogleSearchConfigError) {
+      if (err instanceof SearxngRequestError) {
         return { error: err.message };
       }
       continue;
@@ -216,7 +216,7 @@ export async function findCandidates(jobId: string): Promise<FindCandidatesResul
       });
       if (contact) contacts.push(contact);
     } catch (err) {
-      if (err instanceof GoogleSearchConfigError) {
+      if (err instanceof SearxngRequestError) {
         return { error: err.message };
       }
       // A single candidate's contact lookup failing shouldn't abort the run.

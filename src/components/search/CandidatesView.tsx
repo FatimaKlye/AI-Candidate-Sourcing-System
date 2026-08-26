@@ -47,8 +47,11 @@ function uniqueSorted(values: string[]): string[] {
   return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 }
 
-function googleSearchUrl(query: string): string {
-  return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+// Client-side convenience link only (no server dependency) — opens the same
+// local SearXNG instance the automated pipeline searches, in its normal
+// HTML results view, for manual/advanced review.
+function searxngSearchUrl(query: string): string {
+  return `http://localhost:8888/search?q=${encodeURIComponent(query)}`;
 }
 
 const emptyManualDraft = {
@@ -194,12 +197,12 @@ export function CandidatesView({ jobId, initialQueries, initialCandidates }: Can
 
   return (
     <div className="flex flex-col gap-6">
-      {/* 1 & 2: Search Queries + Open Google Search */}
+      {/* 1 & 2: Search Queries + Open SearXNG Search */}
       <section className="flex flex-col gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Search Queries</h2>
           <p className="text-sm text-slate-500">
-            Open each query in Google, then add anyone you find below.
+            Open each query in SearXNG, then add anyone you find below.
           </p>
         </div>
 
@@ -229,12 +232,12 @@ export function CandidatesView({ jobId, initialQueries, initialCandidates }: Can
                   <p className="mt-1 break-all text-sm text-slate-700">{query.query_text}</p>
                 </div>
                 <a
-                  href={googleSearchUrl(query.query_text)}
+                  href={searxngSearchUrl(query.query_text)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`${linkButtonClass} w-fit shrink-0`}
                 >
-                  Open Google Search
+                  Open SearXNG Search
                 </a>
               </div>
             ))}

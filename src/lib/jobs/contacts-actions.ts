@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { findPublicContact } from "@/lib/search/contact-search";
-import { GoogleSearchConfigError } from "@/lib/search/google";
+import { SearxngRequestError } from "@/lib/search/searxng";
 import type { CandidateContact } from "@/lib/jobs/contacts-schema";
 import type { CandidateMatchWithCandidate } from "@/lib/jobs/ranking-schema";
 import type { Candidate } from "@/lib/jobs/candidates-schema";
@@ -135,7 +135,7 @@ export async function findContactForCandidate(
   try {
     saved = await saveContact(supabase, jobId, user.id, match);
   } catch (err) {
-    if (err instanceof GoogleSearchConfigError) {
+    if (err instanceof SearxngRequestError) {
       return { error: err.message };
     }
     return { error: "Something went wrong while searching for contact info. Please try again." };
@@ -182,7 +182,7 @@ export async function findContactsForShortlist(
       const contact = await saveContact(supabase, jobId, user.id, match);
       if (contact) saved.push(contact);
     } catch (err) {
-      if (err instanceof GoogleSearchConfigError) {
+      if (err instanceof SearxngRequestError) {
         return { error: err.message };
       }
       // A single candidate's lookup failing shouldn't abort the rest of

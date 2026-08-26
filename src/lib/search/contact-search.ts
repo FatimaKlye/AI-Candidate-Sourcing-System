@@ -1,12 +1,11 @@
 // Public-web contact discovery for a single candidate. Reuses the same
-// Google Custom Search source as candidate-pipeline.ts — no paid
-// people-data API is used. Every result is either a fact lifted straight
-// from a public search snippet ("Publicly Found") or a locally generated
-// email-pattern guess that is always labelled "Possible" / unverified, per
-// AGENTS.md: never present a guessed email or invented phone number as
-// confirmed.
+// SearXNG source as candidate-pipeline.ts — no paid people-data API is
+// used. Every result is either a fact lifted straight from a public search
+// snippet ("Publicly Found") or a locally generated email-pattern guess
+// that is always labelled "Possible" / unverified, per AGENTS.md: never
+// present a guessed email or invented phone number as confirmed.
 
-import { searchWeb, GoogleSearchConfigError, type WebSearchResult } from "./google";
+import { searchWeb, SearxngRequestError, type WebSearchResult } from "./searxng";
 import type { ContactStatus } from "@/lib/jobs/contacts-schema";
 
 const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
@@ -96,10 +95,10 @@ function extractFromResults(
 /**
  * Searches free public web sources for a candidate's work contact details.
  * Falls back to a single locally generated email-pattern guess (never
- * marked as verified) when nothing publicly published is found. A missing
- * search API key aborts immediately since every subsequent call would fail
- * identically; any other per-query failure is treated as "nothing found"
- * so one bad request doesn't fail the whole lookup.
+ * marked as verified) when nothing publicly published is found. SearXNG
+ * being unreachable aborts immediately since every subsequent call would
+ * fail identically; any other per-query failure is treated as "nothing
+ * found" so one bad request doesn't fail the whole lookup.
  */
 export async function findPublicContact(
   input: ContactSearchInput,
@@ -116,7 +115,7 @@ export async function findPublicContact(
     try {
       results = await searchWeb(query, 8);
     } catch (err) {
-      if (err instanceof GoogleSearchConfigError) throw err;
+      if (err instanceof SearxngRequestError) throw err;
       continue;
     }
 
@@ -141,7 +140,7 @@ export async function findPublicContact(
   try {
     domain = await findCompanyDomain(currentCompany);
   } catch (err) {
-    if (err instanceof GoogleSearchConfigError) throw err;
+    if (err instanceof SearxngRequestError) throw err;
   }
 
   if (domain) {

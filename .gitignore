@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# searxng runtime cache (bind-mounted Docker volume)
+/searxng/data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

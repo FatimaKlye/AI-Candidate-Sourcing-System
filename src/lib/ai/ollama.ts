@@ -14,7 +14,7 @@ import {
   extractedSearchCandidatesResponseSchema,
   type ExtractedSearchCandidate,
 } from "@/lib/jobs/candidates-schema";
-import type { WebSearchResult } from "@/lib/search/google";
+import type { WebSearchResult } from "@/lib/search/searxng";
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "qwen2.5";
