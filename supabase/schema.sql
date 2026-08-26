@@ -371,3 +371,58 @@ drop trigger if exists set_candidate_matches_updated_at on public.candidate_matc
 create trigger set_candidate_matches_updated_at
   before update on public.candidate_matches
   for each row execute function public.set_updated_at();
+
+-- ============================================================
+-- Contact discovery: publicly available work contact details found for
+-- ranked candidates. Run this section once too (safe to re-run).
+-- ============================================================
+
+create table if not exists public.candidate_contacts (
+  id uuid primary key default gen_random_uuid(),
+  candidate_id uuid not null references public.candidates (id) on delete cascade,
+  job_id uuid not null references public.jobs (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  email text,
+  email_status text not null default 'Not Found'
+    check (email_status in ('Publicly Found', 'Possible', 'Not Verified', 'Not Found')),
+  phone text,
+  phone_status text not null default 'Not Found'
+    check (phone_status in ('Publicly Found', 'Possible', 'Not Verified', 'Not Found')),
+  source_name text,
+  source_url text,
+  confidence integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (job_id, candidate_id)
+);
+
+create index if not exists candidate_contacts_job_id_idx
+  on public.candidate_contacts (job_id);
+
+alter table public.candidate_contacts enable row level security;
+
+drop policy if exists "Users can view own candidate contacts" on public.candidate_contacts;
+create policy "Users can view own candidate contacts"
+  on public.candidate_contacts for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert own candidate contacts" on public.candidate_contacts;
+create policy "Users can insert own candidate contacts"
+  on public.candidate_contacts for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own candidate contacts" on public.candidate_contacts;
+create policy "Users can update own candidate contacts"
+  on public.candidate_contacts for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete own candidate contacts" on public.candidate_contacts;
+create policy "Users can delete own candidate contacts"
+  on public.candidate_contacts for delete
+  using (auth.uid() = user_id);
+
+drop trigger if exists set_candidate_contacts_updated_at on public.candidate_contacts;
+create trigger set_candidate_contacts_updated_at
+  before update on public.candidate_contacts
+  for each row execute function public.set_updated_at();
