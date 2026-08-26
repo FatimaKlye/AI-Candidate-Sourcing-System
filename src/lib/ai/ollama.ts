@@ -10,6 +10,10 @@ import {
   candidateExtractionResponseSchema,
   type ExtractedCandidateInfo,
 } from "@/lib/jobs/candidates-schema";
+import {
+  candidateEvaluationSchema,
+  type CandidateEvaluation,
+} from "@/lib/jobs/ranking-schema";
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "qwen2.5";
@@ -224,4 +228,74 @@ export async function extractCandidatesFromResults(
   }
 
   return result.data.candidates;
+}
+
+const RANKING_SYSTEM_PROMPT = `You are a precise recruiting analyst comparing one candidate's publicly available profile information against a single job's hiring requirements.
+
+Rules:
+- Use only the candidate information provided below (current title, current company, location, and profile snippet). Never invent, assume, or guess any experience, skill, employer, certification, industry, or fact that is not explicitly present in that text.
+- For every item in "must_have", "preferred", and "required_skills", decide a status:
+  - "Match" if the candidate information explicitly confirms the requirement.
+  - "Partial" if the candidate information suggests a related or partial match but does not fully confirm it.
+  - "Not Confirmed" if the candidate information does not mention or address the requirement at all.
+- Compare the candidate's title, company, location, and snippet against the job's "industry", "seniority", "location", and "minimum_experience" using the same three statuses.
+- "evidence" must be a short quote or close paraphrase of the specific part of the candidate information that supports the status. If the status is "Not Confirmed", respond with exactly "No mention found in the available candidate information."
+- Repeat each "requirement" value exactly as given in the input so it can be matched back to its source.
+- Do not compute or output any numeric score. Only return the statuses and evidence described above.
+- Respond with ONLY a single JSON object, no markdown formatting and no commentary, matching exactly this shape:
+{
+  "must_have": [{ "requirement": string, "status": "Match"|"Partial"|"Not Confirmed", "evidence": string }],
+  "preferred": [{ "requirement": string, "status": "Match"|"Partial"|"Not Confirmed", "evidence": string }],
+  "skills": [{ "requirement": string, "status": "Match"|"Partial"|"Not Confirmed", "evidence": string }],
+  "industry": { "requirement": string, "status": "Match"|"Partial"|"Not Confirmed", "evidence": string },
+  "seniority": { "requirement": string, "status": "Match"|"Partial"|"Not Confirmed", "evidence": string },
+  "location": { "requirement": string, "status": "Match"|"Partial"|"Not Confirmed", "evidence": string },
+  "experience": { "requirement": string, "status": "Match"|"Partial"|"Not Confirmed", "evidence": string }
+}`;
+
+export interface CandidateEvaluationInput {
+  full_name: string;
+  current_title: string;
+  current_company: string;
+  location: string;
+  snippet: string | null;
+}
+
+export async function evaluateCandidateAgainstRequirements(
+  requirements: JobRequirementsExtraction,
+  candidate: CandidateEvaluationInput,
+): Promise<CandidateEvaluation> {
+  const userContent = `Job requirements:\n${JSON.stringify(
+    {
+      must_have: requirements.must_have,
+      preferred: requirements.preferred,
+      required_skills: requirements.required_skills,
+      industry: requirements.industry,
+      seniority: requirements.seniority,
+      location: requirements.location,
+      minimum_experience: requirements.minimum_experience,
+    },
+    null,
+    2,
+  )}\n\nCandidate information:\n${JSON.stringify(
+    {
+      current_title: candidate.current_title,
+      current_company: candidate.current_company,
+      location: candidate.location,
+      snippet: candidate.snippet ?? "Not Found",
+    },
+    null,
+    2,
+  )}`;
+
+  const parsedJson = await chatJson(RANKING_SYSTEM_PROMPT, userContent);
+
+  const result = candidateEvaluationSchema.safeParse(parsedJson);
+  if (!result.success) {
+    throw new OllamaResponseError(
+      `The AI model returned an unexpected response while evaluating ${candidate.full_name}.`,
+    );
+  }
+
+  return result.data;
 }

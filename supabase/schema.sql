@@ -313,3 +313,61 @@ drop policy if exists "Users can delete own candidates" on public.candidates;
 create policy "Users can delete own candidates"
   on public.candidates for delete
   using (auth.uid() = user_id);
+
+-- ============================================================
+-- AI ranking: candidate match scores against a job's requirements.
+-- Run this section once too (safe to re-run).
+-- ============================================================
+
+create table if not exists public.candidate_matches (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.jobs (id) on delete cascade,
+  candidate_id uuid not null references public.candidates (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  overall_score integer not null default 0,
+  must_have_score integer not null default 0,
+  experience_score integer not null default 0,
+  industry_score integer not null default 0,
+  skills_score integer not null default 0,
+  seniority_score integer not null default 0,
+  location_score integer not null default 0,
+  preferred_score integer not null default 0,
+  strengths text[] not null default '{}',
+  missing_requirements text[] not null default '{}',
+  analysis jsonb not null default '[]',
+  shortlisted boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (job_id, candidate_id)
+);
+
+create index if not exists candidate_matches_job_id_score_idx
+  on public.candidate_matches (job_id, overall_score desc);
+
+alter table public.candidate_matches enable row level security;
+
+drop policy if exists "Users can view own candidate matches" on public.candidate_matches;
+create policy "Users can view own candidate matches"
+  on public.candidate_matches for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert own candidate matches" on public.candidate_matches;
+create policy "Users can insert own candidate matches"
+  on public.candidate_matches for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own candidate matches" on public.candidate_matches;
+create policy "Users can update own candidate matches"
+  on public.candidate_matches for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete own candidate matches" on public.candidate_matches;
+create policy "Users can delete own candidate matches"
+  on public.candidate_matches for delete
+  using (auth.uid() = user_id);
+
+drop trigger if exists set_candidate_matches_updated_at on public.candidate_matches;
+create trigger set_candidate_matches_updated_at
+  before update on public.candidate_matches
+  for each row execute function public.set_updated_at();
