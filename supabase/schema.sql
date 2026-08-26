@@ -221,3 +221,49 @@ drop trigger if exists set_job_requirements_updated_at on public.job_requirement
 create trigger set_job_requirements_updated_at
   before update on public.job_requirements
   for each row execute function public.set_updated_at();
+
+-- ============================================================
+-- Candidate search: AI-generated Google/LinkedIn search queries.
+-- Run this section once too (safe to re-run).
+-- ============================================================
+
+create table if not exists public.search_queries (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.jobs (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  query_text text not null,
+  query_type text not null default 'General',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists search_queries_job_id_idx
+  on public.search_queries (job_id);
+
+alter table public.search_queries enable row level security;
+
+drop policy if exists "Users can view own search queries" on public.search_queries;
+create policy "Users can view own search queries"
+  on public.search_queries for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert own search queries" on public.search_queries;
+create policy "Users can insert own search queries"
+  on public.search_queries for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own search queries" on public.search_queries;
+create policy "Users can update own search queries"
+  on public.search_queries for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete own search queries" on public.search_queries;
+create policy "Users can delete own search queries"
+  on public.search_queries for delete
+  using (auth.uid() = user_id);
+
+drop trigger if exists set_search_queries_updated_at on public.search_queries;
+create trigger set_search_queries_updated_at
+  before update on public.search_queries
+  for each row execute function public.set_updated_at();

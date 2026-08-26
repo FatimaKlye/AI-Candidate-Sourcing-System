@@ -262,7 +262,7 @@ export function JobAnalysisView({ jobId, initialRequirements }: JobAnalysisViewP
           Save Changes
         </Button>
         <Link
-          href={`/search/${jobId}/candidates`}
+          href={`/search/${jobId}/queries`}
           className="inline-flex flex-1 items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
         >
           Continue to Candidate Search

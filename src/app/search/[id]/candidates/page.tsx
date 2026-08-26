@@ -36,10 +36,10 @@ export default async function CandidateSearchPage({
       <main className="flex flex-1 justify-center px-4 py-10">
         <div className="w-full max-w-2xl">
           <Link
-            href={`/search/${id}/analysis`}
+            href={`/search/${id}/queries`}
             className="text-sm font-medium text-slate-500 hover:text-slate-700"
           >
-            ← Back to job analysis
+            ← Back to search queries
           </Link>
 
           <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
