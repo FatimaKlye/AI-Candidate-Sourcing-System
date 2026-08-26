@@ -32,6 +32,23 @@ export const candidateEvaluationSchema = z.object({
 
 export type CandidateEvaluation = z.infer<typeof candidateEvaluationSchema>;
 
+// Qualitative narrative the AI is asked to produce for only the top-ranked
+// candidates, grounded in an already-computed CandidateEvaluation — it never
+// determines status/score itself. See analyzeCandidateBatch() in ai/ollama.ts.
+export const qualitativeAnalysisItemSchema = z.object({
+  full_name: z.string().trim().min(1).catch(""),
+  why_match: z.string().trim().min(1).catch(""),
+  strongest_evidence: z.string().trim().min(1).catch(""),
+  missing_or_unconfirmed: z.array(z.string().trim().min(1)).catch([]),
+  summary: z.string().trim().min(1).catch(""),
+});
+
+export type QualitativeAnalysisItem = z.infer<typeof qualitativeAnalysisItemSchema>;
+
+export const qualitativeBatchResponseSchema = z.object({
+  candidates: z.array(qualitativeAnalysisItemSchema).catch([]),
+});
+
 // Stored, per-requirement breakdown shown in "View Full Analysis".
 export const ANALYSIS_CATEGORY_LABELS = {
   must_have: "Must-Have",
@@ -69,6 +86,11 @@ export interface CandidateMatch {
   missing_requirements: string[];
   analysis: AnalysisItem[];
   shortlisted: boolean;
+  // Populated only for the top-ranked candidates sent to Ollama for
+  // qualitative analysis (see pipeline-actions.ts); null for everyone else.
+  ai_summary: string | null;
+  ai_why_match: string | null;
+  ai_strongest_evidence: string | null;
   created_at: string;
   updated_at: string;
 }
