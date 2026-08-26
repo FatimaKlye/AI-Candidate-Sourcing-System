@@ -136,14 +136,15 @@ const SEARCH_QUERY_SYSTEM_PROMPT = `You are a precise sourcing strategist. You w
 Rules:
 - Use only the requirements provided below. Never invent companies, titles, skills, or locations that are not present in the input.
 - A "Target Companies" or "Previous Companies" query may only name companies that literally appear in the input's target_companies list. If target_companies is empty, do not produce a Target Companies or Previous Companies query at all.
-- Prioritize must-have requirements and required_skills over preferred ones.
+- Never invent a company or generic domain placeholder (e.g. "site:company.com") — every site: filter must target a real, generic public site (linkedin.com/in, indeed.com, etc.), never a made-up company domain.
+- List the BROADEST, most likely to return results queries first: start with just the job title plus location, then the job title alone, before adding any skills, seniority, or site: filters. A query cramming together every must-have skill, the exact title, seniority, AND location AND a site: filter all at once is too narrow — split it into several looser queries instead. Do not require all JD skills in one query.
+- Prioritize must-have requirements and required_skills over preferred ones, but keep each individual query to at most one or two of them combined with the title/location — never all of them at once.
 - Use related_titles for "Related Job Titles" queries where they are useful alternatives to the exact job title.
-- Prefer compact, boolean-style Google search syntax: quotes for exact phrases, OR to combine alternatives, and site: to scope a domain. Keep every query short enough to paste directly into Google.
-- Cover a mix of these query types where the input supports them, using these exact labels for "query_type": "Exact Job Title", "Related Job Titles", "Must-Have Skills", "Industry", "Location", "Target Companies", "Previous Companies", "Seniority", "LinkedIn Discovery", "Company Website", "Public PDFs & Bios".
+- Prefer compact, boolean-style search syntax: quotes for exact phrases, OR to combine alternatives, and site: to scope a domain to a real public site. Keep every query short enough to paste directly into a search engine.
+- Cover a mix of these query types where the input supports them, using these exact labels for "query_type": "Exact Job Title", "Related Job Titles", "Must-Have Skills", "Industry", "Location", "Target Companies", "Previous Companies", "Seniority", "LinkedIn Discovery", "Public PDFs & Bios".
 - "LinkedIn Discovery" queries should start with site:linkedin.com/in.
-- "Company Website" queries should start with site:company.com as a literal placeholder domain, since no real target company websites are known.
 - "Public PDFs & Bios" queries should target public executive bios or resumes, e.g. using filetype:pdf.
-- Produce between 5 and 15 queries in total, with no duplicate query_text values.
+- Produce between 5 and 15 queries in total, with no duplicate query_text values, ordered from broadest to most specific.
 - Respond with ONLY a single JSON object, no markdown formatting and no commentary, matching exactly this shape:
 {
   "queries": [

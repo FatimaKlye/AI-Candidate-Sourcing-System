@@ -29,9 +29,19 @@ interface SearxngApiResultItem {
   engines?: string[];
 }
 
+// SearXNG reports per-engine failures (rate limits, CAPTCHAs, timeouts) here
+// even on an overall 200 response with `results: []`. Surfacing this in dev
+// logs is what tells "genuinely no matches for this role" apart from "every
+// engine is currently failing" — the two look identical from `results.length`
+// alone but call for very different fixes.
+type SearxngEngineError = [engine: string, reason: string];
+
 interface SearxngApiResponse {
   results?: SearxngApiResultItem[];
+  unresponsive_engines?: SearxngEngineError[];
 }
+
+const isDev = process.env.NODE_ENV !== "production";
 
 function getBaseUrl(): string {
   const base = process.env.SEARXNG_URL || "http://localhost:8888";
@@ -42,25 +52,64 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchOnce(url: string): Promise<SearxngApiResponse> {
+async function fetchOnce(url: string, query: string): Promise<SearxngApiResponse> {
   let response: Response;
   try {
     response = await fetch(url, {
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: { Accept: "application/json" },
     });
-  } catch {
+  } catch (err) {
+    if (isDev) {
+      console.log(
+        `[searxng] query=${JSON.stringify(query)} url=${url} FAILED (network error): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
     throw new SearxngRequestError(UNAVAILABLE_MESSAGE);
   }
 
   if (!response.ok) {
+    if (isDev) {
+      console.log(
+        `[searxng] query=${JSON.stringify(query)} url=${url} status=${response.status} (non-2xx)`,
+      );
+    }
     throw new SearxngRequestError(UNAVAILABLE_MESSAGE);
   }
 
   const payload = (await response.json().catch(() => null)) as SearxngApiResponse | null;
   if (!payload) {
+    if (isDev) {
+      console.log(
+        `[searxng] query=${JSON.stringify(query)} url=${url} status=${response.status} (unparseable JSON body)`,
+      );
+    }
     throw new SearxngRequestError(UNAVAILABLE_MESSAGE);
   }
+
+  if (isDev) {
+    const results = payload.results ?? [];
+    console.log(
+      [
+        `[searxng] query=${JSON.stringify(query)}`,
+        `url=${url}`,
+        `status=${response.status}`,
+        `results=${results.length}`,
+        `engineErrors=${JSON.stringify(payload.unresponsive_engines ?? [])}`,
+      ].join(" "),
+    );
+    console.log(
+      "[searxng] first 3 results:",
+      JSON.stringify(
+        results.slice(0, 3).map((r) => ({ title: r.title, url: r.url, engine: r.engine })),
+        null,
+        2,
+      ),
+    );
+  }
+
   return payload;
 }
 
@@ -82,7 +131,7 @@ export async function searchWeb(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const payload = await fetchOnce(url.toString());
+      const payload = await fetchOnce(url.toString(), query);
       const items = payload.results ?? [];
 
       return items

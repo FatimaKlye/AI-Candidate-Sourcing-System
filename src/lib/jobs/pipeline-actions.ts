@@ -21,7 +21,8 @@ import { saveContact } from "@/lib/jobs/contacts-actions";
 import { scoreEvaluation } from "@/lib/jobs/scoring";
 import { searchWeb, SearxngRequestError, type WebSearchResult } from "@/lib/search/searxng";
 import type { Candidate, ExtractedSearchCandidate } from "@/lib/jobs/candidates-schema";
-import type { GeneratedSearchQuery } from "@/lib/jobs/queries-schema";
+import { queryTypeRank, type GeneratedSearchQuery } from "@/lib/jobs/queries-schema";
+import type { JobRequirementsExtraction } from "@/lib/jobs/analysis-schema";
 import type { CandidateContact } from "@/lib/jobs/contacts-schema";
 import type { CandidateMatchWithCandidate } from "@/lib/jobs/ranking-schema";
 
@@ -83,6 +84,39 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+// A generated query can be too narrow (too many must-have skills stacked
+// together, an exact-phrase title that doesn't match how postings are
+// actually worded, etc.) and come back empty even though the role itself is
+// searchable. Rather than treating that as "no candidates for this query",
+// broaden automatically: title + location, then each related title, before
+// giving up on that slot. One zero-result query should never stall the run.
+async function searchWithFallback(
+  queryText: string,
+  requirements: JobRequirementsExtraction,
+  resultCount: number,
+): Promise<WebSearchResult[]> {
+  const direct = await searchWeb(queryText, resultCount);
+  if (direct.length > 0) return direct;
+
+  const location =
+    requirements.location && requirements.location !== "Not Specified"
+      ? requirements.location
+      : "";
+  const fallbackQueries = [
+    [requirements.job_title, location].filter(Boolean).join(" "),
+    ...requirements.related_titles
+      .slice(0, 2)
+      .map((title) => [title, location].filter(Boolean).join(" ")),
+  ].filter((q) => q && q.toLowerCase() !== queryText.toLowerCase());
+
+  for (const fallbackQuery of fallbackQueries) {
+    const results = await searchWeb(fallbackQuery, resultCount);
+    if (results.length > 0) return results;
+  }
+
+  return [];
+}
+
 export interface FindCandidatesResult {
   data?: {
     matches: CandidateMatchWithCandidate[];
@@ -125,15 +159,20 @@ export async function findCandidates(jobId: string): Promise<FindCandidatesResul
   }
   await saveSearchQueriesForPipeline(supabase, jobId, user.id, generatedQueries);
 
-  // 3. Automatically search public sources for candidates.
-  const queriesToRun = generatedQueries.slice(0, MAX_QUERIES_PER_RUN);
+  // 3. Automatically search public sources for candidates. Broadest query
+  // types run first (see queryTypeRank) so the fixed per-run query budget is
+  // spent on the searches most likely to return something, regardless of
+  // what order the model happened to list them in.
+  const queriesToRun = [...generatedQueries]
+    .sort((a, b) => queryTypeRank(a.query_type) - queryTypeRank(b.query_type))
+    .slice(0, MAX_QUERIES_PER_RUN);
   const seenLinks = new Set<string>();
   const uniqueResults: WebSearchResult[] = [];
 
   for (const query of queriesToRun) {
     let results: WebSearchResult[];
     try {
-      results = await searchWeb(query.query_text, RESULTS_PER_QUERY);
+      results = await searchWithFallback(query.query_text, requirements, RESULTS_PER_QUERY);
     } catch (err) {
       if (err instanceof SearxngRequestError) {
         return { error: err.message };
