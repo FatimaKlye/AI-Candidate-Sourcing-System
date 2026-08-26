@@ -90,13 +90,23 @@ export default async function JobDetailPage({
             </div>
 
             <div className="mt-8 border-t border-slate-100 pt-6">
-              <button
-                type="button"
-                disabled
-                className="w-full cursor-not-allowed rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500"
-              >
-                Analyze Candidates — Coming soon
-              </button>
+              {job.jd_text || job.file_path ? (
+                <Link
+                  href={`/search/${id}/analysis`}
+                  className="flex w-full items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                >
+                  Continue
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full cursor-not-allowed rounded-lg bg-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-500"
+                  title="Add a job description before continuing."
+                >
+                  Continue
+                </button>
+              )}
             </div>
           </div>
         </div>

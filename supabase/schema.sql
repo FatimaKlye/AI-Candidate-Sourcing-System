@@ -142,3 +142,82 @@ create policy "Users can delete own JD files"
     bucket_id = 'job-descriptions'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- ============================================================
+-- JD analysis: AI-extracted hiring requirements per job.
+-- Run this section once too (safe to re-run).
+-- ============================================================
+
+create table if not exists public.job_requirements (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.jobs (id) on delete cascade,
+  job_title text not null default 'Not Specified',
+  location text not null default 'Not Specified',
+  seniority text not null default 'Not Specified',
+  industry text not null default 'Not Specified',
+  minimum_experience text not null default 'Not Specified',
+  must_have text[] not null default '{}',
+  preferred text[] not null default '{}',
+  required_skills text[] not null default '{}',
+  related_titles text[] not null default '{}',
+  target_companies text[] not null default '{}',
+  exclusions text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (job_id)
+);
+
+alter table public.job_requirements enable row level security;
+
+-- Ownership is scoped through the parent job's user_id since this table has
+-- no user_id column of its own.
+drop policy if exists "Users can view own job requirements" on public.job_requirements;
+create policy "Users can view own job requirements"
+  on public.job_requirements for select
+  using (
+    exists (
+      select 1 from public.jobs j
+      where j.id = job_id and j.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Users can insert own job requirements" on public.job_requirements;
+create policy "Users can insert own job requirements"
+  on public.job_requirements for insert
+  with check (
+    exists (
+      select 1 from public.jobs j
+      where j.id = job_id and j.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Users can update own job requirements" on public.job_requirements;
+create policy "Users can update own job requirements"
+  on public.job_requirements for update
+  using (
+    exists (
+      select 1 from public.jobs j
+      where j.id = job_id and j.user_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.jobs j
+      where j.id = job_id and j.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "Users can delete own job requirements" on public.job_requirements;
+create policy "Users can delete own job requirements"
+  on public.job_requirements for delete
+  using (
+    exists (
+      select 1 from public.jobs j
+      where j.id = job_id and j.user_id = auth.uid()
+    )
+  );
+
+drop trigger if exists set_job_requirements_updated_at on public.job_requirements;
+create trigger set_job_requirements_updated_at
+  before update on public.job_requirements
+  for each row execute function public.set_updated_at();
