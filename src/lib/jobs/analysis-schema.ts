@@ -13,6 +13,9 @@ export const jobRequirementsSchema = z.object({
   seniority: requiredText,
   industry: requiredText,
   minimum_experience: requiredText,
+  education: requiredText,
+  certifications: stringList,
+  responsibilities: stringList,
   must_have: stringList,
   preferred: stringList,
   required_skills: stringList,
@@ -28,4 +31,5 @@ export interface JobRequirements extends JobRequirementsExtraction {
   job_id: string;
   created_at: string;
   updated_at: string;
+  version?: number;
 }

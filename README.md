@@ -1,48 +1,64 @@
-# TalentAI — AI Candidate Sourcing
+# TalentAI — Private HR Candidate Sourcing
 
-Landing page, Supabase-backed authentication, and the start of a candidate
-search flow. This slice covers: landing page, login/register, Google OAuth,
-session persistence, protected `/dashboard`, and creating + listing job
-searches (`/search/new`, `/search/[id]`). No JD parsing/AI analysis or
-candidate search yet — a saved search just sits as a `draft`.
+TalentAI is an invitation-only recruitment workspace for organization-approved HR personnel. It processes job descriptions, starts sourcing through approved integrations, calculates auditable candidate-match scores, and supports shared HR review, shortlists, notes, follow-ups, and activity history.
 
-## Setup
+There is no public registration, applicant portal, public job page, internet-wide scraping, or in-application administrator role.
 
-1. Install dependencies: `npm install`
-2. `.env.local` is already populated with this project's Supabase URL and
-   publishable key.
-3. In the Supabase SQL Editor, run [supabase/schema.sql](supabase/schema.sql)
-   once (safe to re-run). It creates:
-   - `profiles` — RLS enabled, users can only read/update their own row, plus
-     a trigger that inserts a profile whenever a new `auth.users` row is
-     created (covers both email/password sign-up and Google sign-in).
-   - `jobs` — one row per saved candidate search (RLS enabled, users can only
-     see/edit/delete their own rows).
-   - a private `job-descriptions` Storage bucket for uploaded JD files, with
-     Storage RLS policies scoping every file to the `<user_id>/...` folder of
-     its uploader.
-4. To enable **Google OAuth**: in the Supabase dashboard under
-   Authentication → Sign In / Providers → Google, add your Google OAuth
-   Client ID/Secret. Under Authentication → URL Configuration, add
-   `http://localhost:3000/auth/callback` (and your production URL's
-   equivalent) to **Redirect URLs**.
-5. Run the dev server: `npm run dev`, then open http://localhost:3000.
+## Core flow
 
-## Structure
+```text
+Approved HR login
+→ Create job requisition
+→ Upload or paste job description
+→ Review Ollama-extracted requirements
+→ Start approved n8n sourcing workflow or add an authorized candidate record
+→ Calculate deterministic match score
+→ Review, shortlist, annotate, and record follow-up
+```
 
-- `src/app/page.tsx` — landing page
-- `src/app/login`, `src/app/register` — auth pages
-- `src/app/auth/callback` — OAuth code-exchange route
-- `src/app/dashboard` — protected page: profile welcome + Recent Searches
-- `src/app/search/new` — job description intake (upload or paste) + job
-  details, saves a `jobs` row
-- `src/app/search/[id]` — read-only view of a saved search (the "Continue"
-  destination from the dashboard; analysis isn't built yet)
-- `src/lib/supabase/{client,server,middleware}.ts` — Supabase client factories
-- `src/lib/jobs/{actions,types,validation}.ts` — server actions
-  (`createJob`, `deleteJob`) and shared validation for JD uploads
-- `src/proxy.ts` — refreshes the Supabase session on every request and
-  redirects unauthenticated users away from `/dashboard` and `/search`, and
-  authenticated users away from `/login` and `/register`
-- `supabase/schema.sql` — `profiles` + `jobs` tables, RLS policies, Storage
-  bucket + policies, auto-create trigger
+## Technology responsibilities
+
+- **Next.js** — private HR interface, authenticated server actions, requisitions, candidates, shortlists, notes, activity, and settings.
+- **Supabase Auth/PostgreSQL/Storage** — invitation-backed identity, workspace membership, RLS, recruitment records, and private documents.
+- **n8n** — approved candidate-source orchestration. The application never scrapes LinkedIn or the open internet.
+- **Ollama** — structured job-description extraction. Numeric match scores remain deterministic and auditable.
+
+## Local setup
+
+1. Install packages with `npm install`.
+2. Copy `.env.example` to `.env.local` and enter the Supabase project URL and publishable key.
+3. Run `supabase/schema.sql` for the legacy base tables on a fresh project.
+4. Run `supabase/private_hr_upgrade.sql` through an approved Supabase migration workflow.
+5. Explicitly approve an HR email before inviting or granting access:
+
+   ```sql
+   select private.approve_hr_user('approved.hr@company.com');
+   ```
+
+6. Disable public user signups in Supabase Authentication settings. Invitations remain managed externally.
+7. Start Ollama and ensure the configured model is installed.
+8. Optionally set `N8N_WEBHOOK_URL` and `N8N_WEBHOOK_TOKEN` for approved-source workflows.
+9. Run `npm run dev` and open `http://localhost:3000`.
+
+## Main navigation
+
+- Dashboard
+- Job Requisitions
+- Matched Applicants
+- Shortlisted
+- Candidate Pool
+- Activity
+- Settings
+
+## Privacy and decision rules
+
+- Candidate and requisition data is restricted to approved workspace members by RLS.
+- HR review is required before candidate contact or hiring decisions.
+- Protected or sensitive personal characteristics are not matching inputs.
+- LinkedIn information must come from an authorized integration or an HR-supplied approved profile URL.
+- Activity records provide team transparency.
+- All HR users have the same application permissions; provisioning is external.
+
+## Reversal
+
+See [REVERSAL.md](REVERSAL.md). The original code is preserved on `backup/pre-private-hr-rebuild-20260826`, and the database upgrade has a paired rollback script that snapshots new HR data before restoring the previous schema and policies.

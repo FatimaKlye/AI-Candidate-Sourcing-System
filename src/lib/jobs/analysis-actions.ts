@@ -21,13 +21,11 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 async function resolveJdText(
   supabase: SupabaseServerClient,
   jobId: string,
-  userId: string,
 ): Promise<{ text?: string; error?: string }> {
   const { data: job } = await supabase
     .from("jobs")
     .select("jd_text, file_path, file_name")
     .eq("id", jobId)
-    .eq("user_id", userId)
     .single();
 
   if (!job) {
@@ -71,8 +69,7 @@ async function resolveJdText(
     await supabase
       .from("jobs")
       .update({ jd_text: text })
-      .eq("id", jobId)
-      .eq("user_id", userId);
+      .eq("id", jobId);
 
     return { text };
   } catch (err) {
@@ -104,7 +101,7 @@ export async function analyzeJob(jobId: string): Promise<AnalyzeJobResult> {
     return { error: "You must be signed in to analyze this job." };
   }
 
-  const { text, error: textError } = await resolveJdText(supabase, jobId, user.id);
+  const { text, error: textError } = await resolveJdText(supabase, jobId);
   if (textError || !text) {
     return { error: textError ?? "No job description to analyze." };
   }
@@ -132,6 +129,7 @@ export async function analyzeJob(jobId: string): Promise<AnalyzeJobResult> {
   }
 
   revalidatePath(`/search/${jobId}/analysis`);
+  revalidatePath(`/requisitions/${jobId}/requirements`);
   return { data: saved as JobRequirements };
 }
 
@@ -156,7 +154,6 @@ export async function saveJobRequirements(
     .from("jobs")
     .select("id")
     .eq("id", jobId)
-    .eq("user_id", user.id)
     .single();
 
   if (!job) {
@@ -177,5 +174,7 @@ export async function saveJobRequirements(
   }
 
   revalidatePath(`/search/${jobId}/analysis`);
+  revalidatePath(`/requisitions/${jobId}/requirements`);
+  revalidatePath(`/requisitions/${jobId}`);
   return {};
 }

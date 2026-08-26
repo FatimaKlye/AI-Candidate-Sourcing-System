@@ -23,6 +23,10 @@ export function NewSearchWizard() {
 
   const [searchName, setSearchName] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [department, setDepartment] = useState("");
+  const [location, setLocation] = useState("");
+  const [employmentType, setEmploymentType] = useState("");
+  const [minimumMatchScore, setMinimumMatchScore] = useState("70");
   const [formError, setFormError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -86,6 +90,10 @@ export function NewSearchWizard() {
     const formData = new FormData();
     formData.set("searchName", searchName.trim());
     formData.set("companyName", companyName.trim());
+    formData.set("department", department.trim());
+    formData.set("location", location.trim());
+    formData.set("employmentType", employmentType.trim());
+    formData.set("minimumMatchScore", minimumMatchScore);
     formData.set("sourceType", sourceType ?? "");
     if (sourceType === "paste") {
       formData.set("jdText", jdText);
@@ -104,7 +112,7 @@ export function NewSearchWizard() {
   if (step === "details") {
     return (
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Job Details</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Requisition details</h2>
         <p className="mt-1 text-sm text-slate-500">
           {sourceType === "upload"
             ? `Using file: ${file?.name}`
@@ -113,13 +121,19 @@ export function NewSearchWizard() {
 
         <div className="mt-6 flex flex-col gap-5">
           <Input
-            label="Search Name"
+            label="Job title / requisition name"
             name="searchName"
             placeholder="Finance Director - Philippines"
             value={searchName}
             onChange={(event) => setSearchName(event.target.value)}
             required
           />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Input label="Department" name="department" placeholder="Engineering" value={department} onChange={(event) => setDepartment(event.target.value)} />
+            <Input label="Location" name="location" placeholder="Manila / Hybrid" value={location} onChange={(event) => setLocation(event.target.value)} />
+            <Input label="Employment type" name="employmentType" placeholder="Full-time" value={employmentType} onChange={(event) => setEmploymentType(event.target.value)} />
+            <Input label="Minimum match score" name="minimumMatchScore" type="number" min="0" max="100" value={minimumMatchScore} onChange={(event) => setMinimumMatchScore(event.target.value)} />
+          </div>
           <Input
             label="Client / Company (optional)"
             name="companyName"
@@ -149,7 +163,7 @@ export function NewSearchWizard() {
               isLoading={isPending}
               className="flex-1"
             >
-              Save Search
+              Save and review requirements
             </Button>
           </div>
         </div>

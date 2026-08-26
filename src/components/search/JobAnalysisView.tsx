@@ -21,6 +21,9 @@ interface FormState {
   seniority: string;
   industry: string;
   minimum_experience: string;
+  education: string;
+  certifications: string;
+  responsibilities: string;
   must_have: string;
   preferred: string;
   required_skills: string;
@@ -36,6 +39,8 @@ const LIST_FIELDS = [
   { key: "related_titles", label: "Relevant Job Titles" },
   { key: "target_companies", label: "Target Companies" },
   { key: "exclusions", label: "Exclusions" },
+  { key: "certifications", label: "Certifications" },
+  { key: "responsibilities", label: "Responsibilities" },
 ] as const satisfies ReadonlyArray<{ key: keyof FormState; label: string }>;
 
 const TEXT_FIELDS = [
@@ -44,6 +49,7 @@ const TEXT_FIELDS = [
   { key: "seniority", label: "Seniority" },
   { key: "industry", label: "Industry" },
   { key: "minimum_experience", label: "Minimum Years of Experience" },
+  { key: "education", label: "Education" },
 ] as const satisfies ReadonlyArray<{ key: keyof FormState; label: string }>;
 
 function toFormState(data: JobRequirementsExtraction): FormState {
@@ -53,6 +59,9 @@ function toFormState(data: JobRequirementsExtraction): FormState {
     seniority: data.seniority,
     industry: data.industry,
     minimum_experience: data.minimum_experience,
+    education: data.education,
+    certifications: data.certifications.join("\n"),
+    responsibilities: data.responsibilities.join("\n"),
     must_have: data.must_have.join("\n"),
     preferred: data.preferred.join("\n"),
     required_skills: data.required_skills.join("\n"),
@@ -75,6 +84,9 @@ function toExtraction(form: FormState): JobRequirementsExtraction {
     seniority: form.seniority.trim() || "Not Specified",
     industry: form.industry.trim() || "Not Specified",
     minimum_experience: form.minimum_experience.trim() || "Not Specified",
+    education: form.education.trim() || "Not Specified",
+    certifications: splitLines(form.certifications),
+    responsibilities: splitLines(form.responsibilities),
     must_have: splitLines(form.must_have),
     preferred: splitLines(form.preferred),
     required_skills: splitLines(form.required_skills),
@@ -191,7 +203,7 @@ export function JobAnalysisView({ jobId, initialRequirements }: JobAnalysisViewP
         </p>
         <div className="flex gap-3">
           <Link
-            href={`/search/${jobId}`}
+            href={`/requisitions/${jobId}`}
             className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50"
           >
             Back
@@ -247,7 +259,7 @@ export function JobAnalysisView({ jobId, initialRequirements }: JobAnalysisViewP
 
       <div className="flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row">
         <Link
-          href={`/search/${jobId}`}
+          href={`/requisitions/${jobId}`}
           className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 sm:shrink-0"
         >
           Back
@@ -262,10 +274,10 @@ export function JobAnalysisView({ jobId, initialRequirements }: JobAnalysisViewP
           Save Changes
         </Button>
         <Link
-          href={`/search/${jobId}/queries`}
+          href={`/requisitions/${jobId}/candidates`}
           className="inline-flex flex-1 items-center justify-center rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
         >
-          Continue to Candidate Search
+          Continue to Candidate Sourcing
         </Link>
       </div>
     </div>

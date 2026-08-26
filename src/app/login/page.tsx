@@ -10,8 +10,8 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <AuthLayout
-      title="Welcome back"
-      subtitle="Log in to continue sourcing candidates."
+      title="Private HR sign in"
+      subtitle="Use your organization-approved account to continue."
     >
       <LoginForm initialError={params.error} />
     </AuthLayout>

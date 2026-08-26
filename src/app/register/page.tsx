@@ -1,13 +1,5 @@
-import { AuthLayout } from "@/components/auth/AuthLayout";
-import { RegisterForm } from "@/components/auth/RegisterForm";
+import { redirect } from "next/navigation";
 
 export default function RegisterPage() {
-  return (
-    <AuthLayout
-      title="Create your account"
-      subtitle="Start finding the right candidates faster with AI."
-    >
-      <RegisterForm />
-    </AuthLayout>
-  );
+  redirect("/login?error=Access+is+invitation-only.+Contact+your+organization+for+an+HR+account.");
 }

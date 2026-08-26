@@ -1,12 +1,10 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { GoogleButton } from "@/components/auth/GoogleButton";
 
 interface LoginFormProps {
   initialError?: string;
@@ -75,25 +73,9 @@ export function LoginForm({ initialError }: LoginFormProps) {
         Login
       </Button>
 
-      <div className="relative flex items-center py-1">
-        <div className="flex-1 border-t border-slate-200" />
-        <span className="px-3 text-xs font-medium uppercase tracking-wide text-slate-400">
-          or
-        </span>
-        <div className="flex-1 border-t border-slate-200" />
+      <div className="rounded-lg border border-cyan-100 bg-cyan-50 px-3 py-3 text-xs leading-5 text-cyan-900">
+        Access is invitation-only for organization-approved HR personnel. There is no public registration.
       </div>
-
-      <GoogleButton />
-
-      <p className="text-center text-sm text-slate-600">
-        Don&apos;t have an account?{" "}
-        <Link
-          href="/register"
-          className="font-semibold text-indigo-600 hover:text-indigo-500"
-        >
-          Create account
-        </Link>
-      </p>
     </form>
   );
 }

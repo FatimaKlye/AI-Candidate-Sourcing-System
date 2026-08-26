@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { getHrSession } from "@/lib/hr/context";
 import { getFileExtension, validateJdFile } from "@/lib/jobs/validation";
 
 const JD_BUCKET = "job-descriptions";
@@ -19,17 +19,17 @@ export interface CreateJobResult {
 }
 
 export async function createJob(formData: FormData): Promise<CreateJobResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { error: "You must be signed in to save a search." };
+  const { supabase, user, workspace } = await getHrSession();
+  if (!user || !workspace) {
+    return { error: "Your account is not approved for this HR workspace." };
   }
 
   const searchName = String(formData.get("searchName") ?? "").trim();
   const companyName = String(formData.get("companyName") ?? "").trim();
+  const department = String(formData.get("department") ?? "").trim();
+  const location = String(formData.get("location") ?? "").trim();
+  const employmentType = String(formData.get("employmentType") ?? "").trim();
+  const minimumMatchScore = Math.min(100, Math.max(0, Number(formData.get("minimumMatchScore") ?? 70)));
   const sourceType = String(formData.get("sourceType") ?? "");
   const jdText = String(formData.get("jdText") ?? "").trim();
   const file = formData.get("file");
@@ -73,25 +73,32 @@ export async function createJob(formData: FormData): Promise<CreateJobResult> {
     return { error: "Paste a job description before continuing." };
   }
 
-  const { error: insertError } = await supabase.from("jobs").insert({
+  const { data: job, error: insertError } = await supabase.from("jobs").insert({
+    workspace_id: workspace.id,
     user_id: user.id,
     search_name: searchName,
     company_name: companyName || null,
+    department: department || null,
+    location: location || null,
+    employment_type: employmentType || null,
+    minimum_match_score: minimumMatchScore,
     jd_text: sourceType === "paste" ? jdText : null,
     file_name: fileName,
     file_path: filePath,
     status: "draft",
-  });
+  }).select("id").single();
 
-  if (insertError) {
+  if (insertError || !job) {
     if (filePath) {
       await supabase.storage.from(JD_BUCKET).remove([filePath]);
     }
-    return { error: insertError.message };
+    return { error: insertError?.message ?? "The requisition could not be saved." };
   }
 
+  await supabase.from("activity_logs").insert({ workspace_id: workspace.id, actor_id: user.id, event_type: "job_description_uploaded", entity_type: "requisition", entity_id: job.id, metadata: { source_type: sourceType, file_name: fileName } });
   revalidatePath("/dashboard");
-  redirect("/dashboard");
+  revalidatePath("/requisitions");
+  redirect(`/requisitions/${job.id}/requirements`);
 }
 
 export interface DeleteJobResult {
@@ -99,12 +106,8 @@ export interface DeleteJobResult {
 }
 
 export async function deleteJob(jobId: string): Promise<DeleteJobResult> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const { supabase, user, workspace } = await getHrSession();
+  if (!user || !workspace) {
     return { error: "You must be signed in." };
   }
 
@@ -112,14 +115,14 @@ export async function deleteJob(jobId: string): Promise<DeleteJobResult> {
     .from("jobs")
     .select("file_path")
     .eq("id", jobId)
-    .eq("user_id", user.id)
+    .eq("workspace_id", workspace.id)
     .single();
 
   const { error } = await supabase
     .from("jobs")
     .delete()
     .eq("id", jobId)
-    .eq("user_id", user.id);
+    .eq("workspace_id", workspace.id);
 
   if (error) {
     return { error: error.message };

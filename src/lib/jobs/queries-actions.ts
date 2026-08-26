@@ -15,13 +15,11 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 async function getOwnedJobRequirements(
   supabase: SupabaseServerClient,
   jobId: string,
-  userId: string,
 ): Promise<{ data?: JobRequirementsExtraction; error?: string }> {
   const { data: job } = await supabase
     .from("jobs")
     .select("id")
     .eq("id", jobId)
-    .eq("user_id", userId)
     .single();
 
   if (!job) {
@@ -61,7 +59,6 @@ export async function generateQueries(jobId: string): Promise<GenerateQueriesRes
   const { data: requirements, error: reqError } = await getOwnedJobRequirements(
     supabase,
     jobId,
-    user.id,
   );
   if (reqError || !requirements) {
     return { error: reqError ?? "Job requirements not found." };
@@ -102,7 +99,6 @@ export async function saveSearchQueries(
     .from("jobs")
     .select("id")
     .eq("id", jobId)
-    .eq("user_id", user.id)
     .single();
 
   if (!job) {
@@ -123,8 +119,7 @@ export async function saveSearchQueries(
   const { error: deleteError } = await supabase
     .from("search_queries")
     .delete()
-    .eq("job_id", jobId)
-    .eq("user_id", user.id);
+    .eq("job_id", jobId);
 
   if (deleteError) {
     return { error: "Could not save the search strategy. Please try again." };
