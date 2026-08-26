@@ -35,6 +35,8 @@ Approved HR login
    select private.approve_hr_user('approved.hr@company.com');
    ```
 
+   For a controlled test environment, `supabase/approve_existing_test_accounts.sql` approves only the accounts present when it runs. Its matching revoke script removes that test batch independently.
+
 6. Disable public user signups in Supabase Authentication settings. Invitations remain managed externally.
 7. Start Ollama and ensure the configured model is installed.
 8. Optionally set `N8N_WEBHOOK_URL` and `N8N_WEBHOOK_TOKEN` for approved-source workflows.

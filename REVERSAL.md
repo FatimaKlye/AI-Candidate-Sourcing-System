@@ -26,3 +26,5 @@ select private.approve_hr_user('approved.hr@company.com');
 ```
 
 Run that statement before inviting a new HR user, or after confirming an existing account is organization-approved.
+
+The temporary approvals created for the accounts that existed on August 27, 2026 are tagged as the `existing_accounts_testing_20260827` batch. Run `supabase/revoke_existing_test_accounts.sql` to remove only those test approvals while preserving later explicit approvals.

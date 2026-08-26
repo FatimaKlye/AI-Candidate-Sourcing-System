@@ -10,9 +10,13 @@ grant usage on schema private to authenticated;
 create table if not exists private.hr_access_allowlist (
   email text primary key,
   active boolean not null default true,
+  provisioning_batch text,
   invited_at timestamptz not null default now(),
   constraint hr_access_allowlist_lowercase_email check (email = lower(email))
 );
+
+alter table private.hr_access_allowlist
+  add column if not exists provisioning_batch text;
 
 revoke all on private.hr_access_allowlist from public, anon, authenticated;
 
@@ -86,7 +90,9 @@ as $$
 begin
   insert into private.hr_access_allowlist (email, active)
   values (lower(trim(target_email)), true)
-  on conflict (email) do update set active = true;
+  on conflict (email) do update
+  set active = true,
+      provisioning_batch = null;
 
   insert into public.workspace_members (workspace_id, user_id)
   select '00000000-0000-0000-0000-000000000001', users.id
@@ -198,8 +204,14 @@ where j.id = cm.job_id and cm.workspace_id is null;
 
 alter table public.candidate_matches alter column workspace_id set not null;
 
-create unique index if not exists candidate_matches_job_candidate_uidx
-  on public.candidate_matches (job_id, candidate_id);
+do $$
+begin
+  if to_regclass('public.candidate_matches_job_id_candidate_id_key') is null
+    and to_regclass('public.candidate_matches_job_candidate_uidx') is null then
+    create unique index candidate_matches_job_candidate_uidx
+      on public.candidate_matches (job_id, candidate_id);
+  end if;
+end $$;
 
 create table if not exists public.candidate_contacts (
   id uuid primary key default gen_random_uuid(),
@@ -287,6 +299,36 @@ create index if not exists activity_logs_workspace_created_at_idx
   on public.activity_logs (workspace_id, created_at desc);
 create index if not exists sourcing_runs_job_created_at_idx
   on public.sourcing_runs (job_id, created_at desc);
+create index if not exists activity_logs_actor_id_idx
+  on public.activity_logs (actor_id);
+create index if not exists candidate_contacts_candidate_id_idx
+  on public.candidate_contacts (candidate_id);
+create index if not exists candidate_contacts_user_id_idx
+  on public.candidate_contacts (user_id);
+create index if not exists candidate_contacts_workspace_id_idx
+  on public.candidate_contacts (workspace_id);
+create index if not exists candidate_matches_candidate_id_idx
+  on public.candidate_matches (candidate_id);
+create index if not exists candidate_matches_user_id_idx
+  on public.candidate_matches (user_id);
+create index if not exists candidate_notes_author_id_idx
+  on public.candidate_notes (author_id);
+create index if not exists candidate_notes_job_id_idx
+  on public.candidate_notes (job_id);
+create index if not exists candidate_notes_workspace_id_idx
+  on public.candidate_notes (workspace_id);
+create index if not exists candidate_source_connections_workspace_id_idx
+  on public.candidate_source_connections (workspace_id);
+create index if not exists candidates_user_id_idx
+  on public.candidates (user_id);
+create index if not exists search_queries_user_id_idx
+  on public.search_queries (user_id);
+create index if not exists sourcing_runs_started_by_idx
+  on public.sourcing_runs (started_by);
+create index if not exists sourcing_runs_workspace_id_idx
+  on public.sourcing_runs (workspace_id);
+create index if not exists workspace_members_user_id_idx
+  on public.workspace_members (user_id);
 
 alter table public.workspaces enable row level security;
 alter table public.workspace_members enable row level security;
@@ -515,13 +557,22 @@ create policy "Workspace members can add activity"
 
 drop policy if exists "Workspace members can view source connections" on public.candidate_source_connections;
 drop policy if exists "Workspace members can manage source connections" on public.candidate_source_connections;
+drop policy if exists "Workspace members can create source connections" on public.candidate_source_connections;
+drop policy if exists "Workspace members can update source connections" on public.candidate_source_connections;
+drop policy if exists "Workspace members can delete source connections" on public.candidate_source_connections;
 create policy "Workspace members can view source connections"
   on public.candidate_source_connections for select to authenticated
   using (private.is_workspace_member(workspace_id));
-create policy "Workspace members can manage source connections"
-  on public.candidate_source_connections for all to authenticated
+create policy "Workspace members can create source connections"
+  on public.candidate_source_connections for insert to authenticated
+  with check (private.is_workspace_member(workspace_id));
+create policy "Workspace members can update source connections"
+  on public.candidate_source_connections for update to authenticated
   using (private.is_workspace_member(workspace_id))
   with check (private.is_workspace_member(workspace_id));
+create policy "Workspace members can delete source connections"
+  on public.candidate_source_connections for delete to authenticated
+  using (private.is_workspace_member(workspace_id));
 
 drop policy if exists "Workspace members can view sourcing runs" on public.sourcing_runs;
 drop policy if exists "Workspace members can create sourcing runs" on public.sourcing_runs;
@@ -649,6 +700,19 @@ create trigger set_candidate_contacts_updated_at before update on public.candida
 drop trigger if exists set_candidate_source_connections_updated_at on public.candidate_source_connections;
 create trigger set_candidate_source_connections_updated_at before update on public.candidate_source_connections
   for each row execute function public.set_updated_at();
+
+do $$
+begin
+  if to_regprocedure('public.set_updated_at()') is not null then
+    execute 'alter function public.set_updated_at() set search_path = ''''';
+  end if;
+  if to_regprocedure('public.handle_new_user()') is not null then
+    execute 'revoke execute on function public.handle_new_user() from public, anon, authenticated';
+  end if;
+  if to_regprocedure('public.rls_auto_enable()') is not null then
+    execute 'revoke execute on function public.rls_auto_enable() from public, anon, authenticated';
+  end if;
+end $$;
 
 revoke all on public.workspaces, public.workspace_members, public.jobs,
   public.job_requirements, public.search_queries, public.candidates,
