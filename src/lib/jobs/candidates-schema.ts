@@ -36,19 +36,29 @@ export const manualCandidateSchema = z.object({
 
 export type ManualCandidateInput = z.infer<typeof manualCandidateSchema>;
 
-// AI extraction shapes: what the LLM is asked to return for each search
-// result it's shown, before we turn it into a DiscoveredCandidate.
-export const extractedCandidateSchema = z.object({
-  index: z.number().int().min(0),
-  is_person: z.boolean(),
-  full_name: z.string().trim().min(1).catch("Not Found"),
-  current_title: z.string().trim().min(1).catch("Not Found"),
-  current_company: z.string().trim().min(1).catch("Not Found"),
-  location: z.string().trim().min(1).catch("Not Found"),
+export const importCandidateSchema = z.object({
+  profile_url: z
+    .string()
+    .trim()
+    .min(1, "Profile URL is required.")
+    .refine((value) => /^https?:\/\//i.test(value), {
+      message: "Profile URL must start with http:// or https://",
+    }),
+  full_name: z.string().trim().min(1, "Full name is required."),
+  current_title: optionalTextField,
+  current_company: optionalTextField,
+  location: optionalTextField,
+  source: optionalTextField,
 });
 
-export const candidateExtractionResponseSchema = z.object({
-  candidates: z.array(extractedCandidateSchema),
-});
+export type ImportCandidateInput = z.infer<typeof importCandidateSchema>;
 
-export type ExtractedCandidateInfo = z.infer<typeof extractedCandidateSchema>;
+// Best-effort fields read from a public profile page's HTML (title/meta
+// tags) before the recruiter reviews and saves them — see profile-extract.ts.
+export interface ExtractedProfileInfo {
+  full_name: string;
+  current_title: string;
+  current_company: string;
+  location: string;
+  source: string;
+}

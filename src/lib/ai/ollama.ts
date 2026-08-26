@@ -7,10 +7,6 @@ import {
   type GeneratedSearchQuery,
 } from "@/lib/jobs/queries-schema";
 import {
-  candidateExtractionResponseSchema,
-  type ExtractedCandidateInfo,
-} from "@/lib/jobs/candidates-schema";
-import {
   candidateEvaluationSchema,
   type CandidateEvaluation,
 } from "@/lib/jobs/ranking-schema";
@@ -182,52 +178,6 @@ export async function generateSearchQueries(
   }
 
   return deduped;
-}
-
-const CANDIDATE_EXTRACTION_SYSTEM_PROMPT = `You are a precise research assistant helping a recruiter identify real, named individuals from public web search results.
-
-You will be given a JSON array of search results, each with an "index", "title", "link", and "snippet".
-
-Rules:
-- Use only facts stated in the title, link, and snippet for each result. Never invent, assume, or guess a person's name, title, company, or location.
-- Set "is_person" to true only if the result clearly refers to one specific, named individual (e.g. a LinkedIn profile, a personal bio, a named speaker or executive). Set it to false for company pages, job listings, aggregate lists, search hubs, or anything that does not name a specific individual.
-- "full_name" must be the person's full name exactly as it appears in the title or snippet. If is_person is false, respond with "Not Found".
-- "current_title" is their current job title if stated, otherwise exactly "Not Found".
-- "current_company" is their current employer if stated, otherwise exactly "Not Found".
-- "location" is their current city, country, or region if stated, otherwise exactly "Not Found".
-- Every input index must appear exactly once in the output, in any order.
-- Respond with ONLY a single JSON object, no markdown formatting and no commentary, matching exactly this shape:
-{
-  "candidates": [
-    { "index": number, "is_person": boolean, "full_name": string, "current_title": string, "current_company": string, "location": string }
-  ]
-}`;
-
-export interface CandidateExtractionInput {
-  index: number;
-  title: string;
-  link: string;
-  snippet: string;
-}
-
-export async function extractCandidatesFromResults(
-  results: CandidateExtractionInput[],
-): Promise<ExtractedCandidateInfo[]> {
-  if (results.length === 0) return [];
-
-  const parsedJson = await chatJson(
-    CANDIDATE_EXTRACTION_SYSTEM_PROMPT,
-    `Search results:\n${JSON.stringify(results, null, 2)}`,
-  );
-
-  const result = candidateExtractionResponseSchema.safeParse(parsedJson);
-  if (!result.success) {
-    throw new OllamaResponseError(
-      "The AI model returned an unexpected response while extracting candidates.",
-    );
-  }
-
-  return result.data.candidates;
 }
 
 const RANKING_SYSTEM_PROMPT = `You are a precise recruiting analyst comparing one candidate's publicly available profile information against a single job's hiring requirements.

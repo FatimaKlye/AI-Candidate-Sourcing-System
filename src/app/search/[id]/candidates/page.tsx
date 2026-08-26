@@ -30,9 +30,9 @@ export default async function CandidateSearchPage({
 
   const { data: queries } = await supabase
     .from("search_queries")
-    .select("id")
+    .select("id, query_text, query_type")
     .eq("job_id", id)
-    .limit(1);
+    .order("created_at", { ascending: true });
 
   const { data: candidates } = await supabase
     .from("candidates")
@@ -59,13 +59,14 @@ export default async function CandidateSearchPage({
           <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
             <h1 className="text-2xl font-semibold text-slate-900">Candidate Discovery</h1>
             <p className="mt-1 text-slate-500">
-              Search public sources for candidates matching the saved search queries.
+              Search public sources for candidates matching the saved search queries, then add
+              or import the ones you find.
             </p>
 
             <div className="mt-6 border-t border-slate-100 pt-6">
               <CandidatesView
                 jobId={id}
-                hasQueries={Boolean(queries && queries.length > 0)}
+                initialQueries={queries ?? []}
                 initialCandidates={(candidates ?? []) as Candidate[]}
               />
             </div>

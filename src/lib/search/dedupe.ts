@@ -1,4 +1,3 @@
-import type { DiscoveredCandidate } from "./types";
 import type { Candidate } from "@/lib/jobs/candidates-schema";
 
 function normalize(value: string): string {
@@ -17,61 +16,37 @@ function normalizeUrl(url: string | null): string | null {
   }
 }
 
-function identityKey(candidate: {
+interface CandidateIdentity {
   full_name: string;
+  current_title: string;
   current_company: string;
-}): string {
-  return `${normalize(candidate.full_name)}|${normalize(candidate.current_company)}`;
-}
-
-function filledFieldCount(candidate: DiscoveredCandidate): number {
-  return [candidate.current_title, candidate.current_company, candidate.location].filter(
-    (value) => value !== "Not Found",
-  ).length;
+  profile_url: string | null;
 }
 
 /**
- * Merges candidates that refer to the same person — matched by profile URL,
- * or by name + company — keeping whichever duplicate has the most complete
- * information.
+ * Finds an existing candidate that looks like the same person, matched by
+ * profile URL, or by full name + company + job title all matching.
  */
-export function dedupeCandidates(
-  candidates: DiscoveredCandidate[],
-): DiscoveredCandidate[] {
-  const byKey = new Map<string, DiscoveredCandidate>();
-  const identityToKey = new Map<string, string>();
-
-  for (const candidate of candidates) {
-    if (!candidate.full_name || candidate.full_name === "Not Found") continue;
-
-    const urlKey = normalizeUrl(candidate.profile_url);
-    const idKey = identityKey(candidate);
-    const key = urlKey ?? identityToKey.get(idKey) ?? `name:${idKey}`;
-
-    const existing = byKey.get(key);
-    if (!existing || filledFieldCount(candidate) > filledFieldCount(existing)) {
-      byKey.set(key, candidate);
-    }
-    identityToKey.set(idKey, key);
+export function findDuplicateCandidate(
+  candidate: CandidateIdentity,
+  existing: Candidate[],
+): Candidate | null {
+  const urlKey = normalizeUrl(candidate.profile_url);
+  if (urlKey) {
+    const urlMatch = existing.find((row) => normalizeUrl(row.profile_url) === urlKey);
+    if (urlMatch) return urlMatch;
   }
 
-  return Array.from(byKey.values());
-}
+  const nameKey = normalize(candidate.full_name);
+  const companyKey = normalize(candidate.current_company);
+  const titleKey = normalize(candidate.current_title);
 
-/** True if `candidate` matches a candidate already saved for this job. */
-export function isDuplicateOfExisting(
-  candidate: DiscoveredCandidate,
-  existing: Candidate[],
-): boolean {
-  const urlKey = normalizeUrl(candidate.profile_url);
-  const idKey = identityKey(candidate);
-
-  return existing.some((row) => {
-    const rowUrlKey = normalizeUrl(row.profile_url);
-    if (urlKey && rowUrlKey && urlKey === rowUrlKey) return true;
-    return (
-      identityKey({ full_name: row.full_name, current_company: row.current_company }) ===
-      idKey
-    );
-  });
+  return (
+    existing.find(
+      (row) =>
+        normalize(row.full_name) === nameKey &&
+        normalize(row.current_company) === companyKey &&
+        normalize(row.current_title) === titleKey,
+    ) ?? null
+  );
 }
